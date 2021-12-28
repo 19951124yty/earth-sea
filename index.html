@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="d3.v4.min.js"></script>
+    <script src="mvi.js"></script>
+    <script src="topojson-client.js"></script>
+    <script src="versor.js"></script>
+    <title>Document</title>
+    <style>
+        body{
+            background-color: black;}
+        html,body{
+        width:100%;
+        height:100%;
+        margin: 0px;
+      }
+    </style>
+    </style>
+</head>
+<body>
+    <canvas id="can">您的浏览器不支持canvas</cavnas>
+</body>
+<script>
+    var can=document.getElementById("can");
+    can.width=screen.availWidth;
+    can.height=screen.availHeight;
+
+    var canvas = d3.select("canvas"),
+    width = canvas.property("width"),
+    height = canvas.property("height"),
+    context = canvas.node().getContext("2d"); 
+
+    d3.json("./earth.json",function(error,earth){
+        if(error) throw error;
+        window.river=topojson.feature(earth,earth.objects.rivers_110m);
+        window.lake=topojson.feature(earth,earth.objects.lakes_110m);
+    })
+
+    var projection = d3.geoOrthographic()     // 立体投影
+    // var projection = d3.geoMercator()     // 立体投影
+      .scale((height) / 3)
+      .translate([width/2, height/2])
+      .precision(0.1);
+    
+    var path = d3.geoPath()    
+        .projection(projection)
+        .context(context);
+    
+    gridGenerator=d3.geoGraticule10();   //经纬线
+
+    canvas.call(d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged));
+
+
+
+    
+    var render = function() {},
+        v0, // Mouse position in Cartesian coordinates at start of drag gesture.
+        r0, // Projection rotation as Euler angles at start.
+        q0; // Projection rotation as versor at start.
+
+    function dragstarted() {
+    v0 = versor.cartesian(projection.invert(d3.mouse(this)));
+    r0 = projection.rotate();
+    q0 = versor(r0);
+    }
+
+    function dragged() {
+    var v1 = versor.cartesian(projection.rotate(r0).invert(d3.mouse(this))),
+        q1 = versor.multiply(q0, versor.delta(v0, v1)),
+        r1 = versor.rotation(q1);
+    projection.rotate(r1);
+    render();
+    }
+    
+    canvas.call(d3.zoom().scaleExtent([-3,3]).on("zoom",zoomed));   //地图缩放监听
+
+    function zoomed(){                              //缩放函数
+        transform=d3.event.transform;
+        render();
+    }
+
+    sphere = {type: "Sphere"};
+    transform={k:1,x:0,y:0};
+
+    d3.json("./110m.json", function(error, world) {
+        if (error) throw error;
+        land = topojson.feature(world, world.objects.land);
+        
+        render = function() {
+            context.save();
+            context.clearRect(0, 0, width, height);
+            rectcenter={x:width/2,y:height/2};
+            // context.translate(transform.x,transform.y);
+            context.translate(rectcenter.x*(1-transform.k),rectcenter.y*(1-transform.k));
+            context.scale(transform.k,transform.k);
+            context.beginPath(), path(sphere), context.strokeStyle=("rgba(0,0,0,1)"),context.setLineDash([]),context.stroke(), context.fillStyle="rgba(40,40,40,0.8)",context.fill();
+            context.beginPath(), path(land), context.fillStyle = "rgba(48,48,48,0.8)", context.fill(),context.strokeWidth=0.2,context.setLineDash([]),context.strokeStyle=("rgba(255,255,255,1)"),context.stroke();
+            context.beginPath(), path(gridGenerator),context.strokeStyle=("rgba(100,100,100,1)"),context.strokeWidth=0.1,context.setLineDash([]),context.stroke();
+            context.beginPath(), path(river), context.strokeStyle=("rgba(255,255,255,1)"),context.strokeWidth=0.2,context.setLineDash([]),context.stroke();
+            context.beginPath(), path(lake), context.strokeStyle=("rgba(255,255,255,1)"),context.strokeWidth=0.2,context.setLineDash([]),context.stroke(), context.fillStyle="rgba(40,40,40,0.8)",context.fill();
+            context.restore();
+    };
+    render();
+});
+</script>
+</html>
